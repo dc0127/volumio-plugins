@@ -143,11 +143,16 @@ class OledDisplay(threading.Thread):
             self.__draw_banner()
         elif self.service_status == "running":
             # 绘制播放图标
-            self.__draw_status("\ue63d")
+            if self.status == "play":
+                self.__draw_status("\ue63d")
+            else:
+                self.__draw_status("\ue67d")
             # 绘制随机图标
-            self.__draw_random("\ue7b8")
+            if self.random:
+                self.__draw_random("\ue7b8")
             # 绘制重复图标
-            self.__draw_repeat("\ue614")
+            if self.repeat:
+                self.__draw_repeat("\ue614")
             # 绘制标题
             self.__draw_title(self.title)
             # 绘制艺术家
@@ -166,7 +171,7 @@ oled.start()
 
 while True:
 #    data = input()
-    data='{"status":"play","position":0,"title":"你怎么舍得我难过 ","artist":"黄品源","album":"情歌101","albumart":"/albumart?cacheid=973&web=%E9%BB%84%E5%93%81%E6%BA%90/%E6%83%85%E6%AD%8C101/extralarge&path=%2FNAS%2Fmusic%2FPop%2F%E6%83%85%E6%AD%8C101(Disc%201)&metadata=true","uri":"mnt/NAS/music/Pop/情歌101(Disc 1)/01 黄品源 - 你怎么舍得我难过 .m4a","trackType":"m4a","seek":209000 ,"duration":294,"samplerate":"44.1 KHz","bitdepth":"16 bit","channels":2,"random":false,"repeat":false,"repeatSingle":false,"consume":false,"volume":0,"mute":false,"stream":"m4a","updatedb":false,"volatile":false,"service":"mpd"}'
+    data='{"status":"play","position":0,"title":"你怎么舍得我难过 ","artist":"黄品源","album":"情歌101","albumart":"/albumart?cacheid=973&web=%E9%BB%84%E5%93%81%E6%BA%90/%E6%83%85%E6%AD%8C101/extralarge&path=%2FNAS%2Fmusic%2FPop%2F%E6%83%85%E6%AD%8C101(Disc%201)&metadata=true","uri":"mnt/NAS/music/Pop/情歌101(Disc 1)/01 黄品源 - 你怎么舍得我难过 .m4a","trackType":"m4a","seek":209000 ,"duration":294,"samplerate":"44.1 KHz","bitdepth":"16 bit","channels":2,"random":false,"repeat":true,"repeatSingle":false,"consume":false,"volume":0,"mute":false,"stream":"m4a","updatedb":false,"volatile":false,"service":"mpd"}'
     time.sleep(1)
     oled.refresh(data)
     oled.service_status = "running"
