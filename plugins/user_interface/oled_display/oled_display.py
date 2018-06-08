@@ -25,10 +25,12 @@ class OledDisplay(threading.Thread):
             status=json.loads(data)
             self.title = status["title"]
             self.artist = status["artist"]
-            self.status = "Artist"
-            self.random = "Artist"
-            self.repeat = "Artist"
-            self.bar = (212,32390)
+            self.status = status["status"]
+            self.random = status["random"]
+            self.repeat = status["repeat"]
+            duration = status["duration"]
+            seek = status["seek"]
+            self.bar = (seek,duration*1000)
         except Exception as err:
             self.service_status = "error"
 
@@ -80,7 +82,14 @@ class OledDisplay(threading.Thread):
         self.draw.text((235,20), text, fill="white", font=self.__make_font(self.icon_font,20))
 
     def __draw_bar(self):
-        self.draw.line([(5,55),(156,55)], fill="white", width=5)
+        bar_start = 5
+        bar_end = 250
+        bar_width = bar_end - bar_start
+        progress = bar_width * self.bar[0]/self.bar[1]
+        bar_current = bar_start + progress
+        if bar_current > bar_end:
+            bar_current = bar_end
+        self.draw.line([(bar_start,55),(bar_current,55)], fill="white", width=5)
 
     def __draw_banner(self):
         text_size =40
@@ -129,7 +138,7 @@ class OledDisplay(threading.Thread):
         if self.service_status == "starting":
             self.banner = "Starting..."
             self.__draw_banner()
-        if self.service_status == "stopping":
+        elif self.service_status == "stopping":
             self.banner = "Stopping..."
             self.__draw_banner()
         elif self.service_status == "running":
@@ -157,10 +166,10 @@ oled.start()
 
 while True:
 #    data = input()
-    data='{"status":"play","position":0,"title":"你怎么舍得我难过 ","artist":"黄品源","album":"情歌101","albumart":"/albumart?cacheid=973&web=%E9%BB%84%E5%93%81%E6%BA%90/%E6%83%85%E6%AD%8C101/extralarge&path=%2FNAS%2Fmusic%2FPop%2F%E6%83%85%E6%AD%8C101(Disc%201)&metadata=true","uri":"mnt/NAS/music/Pop/情歌101(Disc 1)/01 黄品源 - 你怎么舍得我难过 .m4a","trackType":"m4a","seek":464,"duration":294,"samplerate":"44.1 KHz","bitdepth":"16 bit","channels":2,"random":false,"repeat":false,"repeatSingle":false,"consume":false,"volume":0,"mute":false,"stream":"m4a","updatedb":false,"volatile":false,"service":"mpd"}'
-    time.sleep(5)
+    data='{"status":"play","position":0,"title":"你怎么舍得我难过 ","artist":"黄品源","album":"情歌101","albumart":"/albumart?cacheid=973&web=%E9%BB%84%E5%93%81%E6%BA%90/%E6%83%85%E6%AD%8C101/extralarge&path=%2FNAS%2Fmusic%2FPop%2F%E6%83%85%E6%AD%8C101(Disc%201)&metadata=true","uri":"mnt/NAS/music/Pop/情歌101(Disc 1)/01 黄品源 - 你怎么舍得我难过 .m4a","trackType":"m4a","seek":209000 ,"duration":294,"samplerate":"44.1 KHz","bitdepth":"16 bit","channels":2,"random":false,"repeat":false,"repeatSingle":false,"consume":false,"volume":0,"mute":false,"stream":"m4a","updatedb":false,"volatile":false,"service":"mpd"}'
+    time.sleep(1)
     oled.refresh(data)
     oled.service_status = "running"
-    time.sleep(5)
-    oled.service_status = "stopping"
+#    time.sleep(5)
+#    oled.service_status = "stopping"
 
