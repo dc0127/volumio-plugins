@@ -109,26 +109,38 @@ class OledDisplay(threading.Thread):
         self.__draw.text((0, -2), text, fill="white", font=font)
 
     def __draw_text(self, text, text_size, text_image_height, target_text_area, start):
-        text_len = len(text)
-        text_image_width = text_len * text_size
         font = self._make_font(self.__text_font, text_size)
-        text_image = Image.new("1", (text_image_width, text_image_height))
+        text_image_size = font.getsize(text)
+        text_image = Image.new("1", text_image_size)
         draw = ImageDraw.Draw(text_image)
         draw.text((0, -5), text, fill="white", font=font)
-        self.__blank_image = Image.new("1", (50, text_image_height))
+        print(text_image, draw.textsize(text, font=font))
+        self.__blank_image = Image.new("1", (50, text_image_size[1]))
         self.__paste_text(text_image, target_text_area, start)
 
     def _draw_title(self, text):
         text_size = 22
-        text_image_height = 29
-        target_text_area = (55, 0, 225, text_image_height)
-        self.__draw_text(text, text_size, text_image_height, target_text_area, self.__get_title_position())
+        font = self._make_font(self.__text_font, text_size)
+        text_image_size = font.getsize(text)
+        target_text_area = (55, 0, 225, text_image_size[1])
+        text_image = Image.new("1", text_image_size)
+        draw = ImageDraw.Draw(text_image)
+        draw.text((0, -5), text, fill="white", font=font)
+        print(text_image, draw.textsize(text, font=font))
+        self.__blank_image = Image.new("1", (50, text_image_size[1]))
+        self.__paste_text(text_image, target_text_area, self.__get_title_position())
 
     def _draw_artist(self, text):
         text_size = 15
-        text_image_height = 20
-        target_text_area = (55, 30, 225, 30 + text_image_height)
-        self.__draw_text(text, text_size, text_image_height, target_text_area, self.__get_artist_position())
+        font = self._make_font(self.__text_font, text_size)
+        text_image_size = font.getsize(text)
+        target_text_area = (55, 30, 225, 30 + text_image_size[1])
+        text_image = Image.new("1", text_image_size)
+        draw = ImageDraw.Draw(text_image)
+        draw.text((0, -5), text, fill="white", font=font)
+        print(text_image, draw.textsize(text, font=font))
+        self.__blank_image = Image.new("1", (50, text_image_size[1]))
+        self.__paste_text(text_image, target_text_area, self.__get_artist_position())
 
     def _draw_random(self, text):
         self.__draw.text((235, 2), text, fill="white", font=self._make_font(self.__icon_font, 20))
@@ -197,6 +209,7 @@ class OledDisplay(threading.Thread):
 
     def __center_text(self, text_image, target_text_area):
         self.__image.paste(text_image, self.__get_center_image_box(text_image, target_text_area))
+        print(text_image, self.__get_center_image_box(text_image, target_text_area), target_text_area)
 
     @staticmethod
     def __get_center_image_box(image, target_text_area):
