@@ -20,6 +20,8 @@ class OledDisplay(threading.Thread):
     MOVE_PIXEL_PER_SECOND = 50
     # 开始播放音轨后，如果标题文字过长，延迟几秒后再滚动文字
     MOVE_TEXT_DELAY = 5
+    # 空白图片宽度（单位：像素）
+    BLANK_IMAGE_WIDTH = 50
 
     def __init__(self):
         threading.Thread.__init__(self)
@@ -116,8 +118,6 @@ class OledDisplay(threading.Thread):
         text_image = Image.new("1", text_image_size)
         draw = ImageDraw.Draw(text_image)
         draw.text((0, -5), text, fill="white", font=font)
-        print(text_image, draw.textsize(text, font=font))
-        self.__blank_image = Image.new("1", (50, text_image_size[1]))
         self.__paste_text(text_image, target_text_area, self.__get_title_position())
 
     def _draw_artist(self, text):
@@ -128,8 +128,6 @@ class OledDisplay(threading.Thread):
         text_image = Image.new("1", text_image_size)
         draw = ImageDraw.Draw(text_image)
         draw.text((0, -5), text, fill="white", font=font)
-        print(text_image, draw.textsize(text, font=font))
-        self.__blank_image = Image.new("1", (50, text_image_size[1]))
         self.__paste_text(text_image, target_text_area, self.__get_artist_position())
 
     def _draw_random(self, text):
@@ -179,40 +177,28 @@ class OledDisplay(threading.Thread):
             self.__center_text(text_image, target_text_area)
 
     def __crop_text(self, text_image, target_text_area, start, width):
-        if (start + width) < text_image.width:
-            crop_box = (start, 0, start + width, text_image.height)
-            self.__image.paste(text_image.crop(crop_box), target_text_area)
-            # print("<",start + width,text_image.width)
-        else:
-            crop_box = (start, 0, text_image.width, text_image.height)
-            ftont_image = text_image.crop(crop_box)
-            front_box = self.__get_front_image_box(ftont_image, target_text_area)
-            self.__image.paste(ftont_image, front_box)
+        text_image_with_blank = Image.new("1", (text_image.width + self.BLANK_IMAGE_WIDTH, text_image.height))
+        text_image_with_blank.paste(text_image, (0, 0, text_image.width, text_image.height))
 
-            blank_box = self.__get_append_image_box(front_box, self.__blank_image)
-            self.__image.paste(self.__blank_image, blank_box)
-            crop_box = (0, 0, target_text_area[2] - blank_box[2], text_image.height)
-            end_image = text_image.crop(crop_box)
-            end_box = self.__get_append_image_box(blank_box, end_image)
+        if (start + width) < text_image_with_blank.width:
+            crop_box = (start, 0, start + width, text_image_with_blank.height)
+            self.__image.paste(text_image_with_blank.crop(crop_box), target_text_area)
+        else:
+            crop_box = (start, 0, text_image_with_blank.width, text_image_with_blank.height)
+            front_image = text_image_with_blank.crop(crop_box)
+            front_box = (target_text_area[0], target_text_area[1],
+                         target_text_area[0] + front_image.width, target_text_area[3])
+            self.__image.paste(front_image, front_box)
+
+            crop_box = (0, 0, target_text_area[2] - front_box[2], text_image_with_blank.height)
+            end_image = text_image_with_blank.crop(crop_box)
+            end_box = (front_box[2], front_box[1], front_box[2] + end_image.width, front_box[3])
             self.__image.paste(end_image, end_box)
             # print(">",start + width,text_image.width)
 
     def __center_text(self, text_image, target_text_area):
-        self.__image.paste(text_image, self.__get_center_image_box(text_image, target_text_area))
-        print(text_image, self.__get_center_image_box(text_image, target_text_area), target_text_area)
-
-    @staticmethod
-    def __get_center_image_box(image, target_text_area):
-        x0 = target_text_area[0] + (target_text_area[2] - target_text_area[0] - image.width) // 2
-        return x0, target_text_area[1], x0 + image.width, target_text_area[3]
-
-    @staticmethod
-    def __get_front_image_box(image, target_text_area):
-        return target_text_area[0], target_text_area[1], target_text_area[0] + image.width, target_text_area[3]
-
-    @staticmethod
-    def __get_append_image_box(front_box, image):
-        return front_box[2], front_box[1], front_box[2] + image.width, front_box[3]
+        x0 = target_text_area[0] + (target_text_area[2] - target_text_area[0] - text_image.width) // 2
+        self.__image.paste(text_image, (x0, target_text_area[1], x0 + text_image.width, target_text_area[3]))
 
 
 class StatusMonitor(threading.Thread):
