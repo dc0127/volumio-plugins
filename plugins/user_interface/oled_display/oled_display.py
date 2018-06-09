@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 
-import sys,io,os,threading,time,datetime,json
+import sys,io,os,threading,time,datetime,json,subprocess
 from luma.core.interface.serial import spi
 from luma.core.render import canvas
 from luma.oled.device import ssd1322
 from PIL import Image, ImageDraw, ImageFont
 
 class OledDisplay(threading.Thread):
+    DISPLAY_FPS = 20
+    MOVE_PIXEL_PER_SECOND = 50
+    MOVE_TEXT_DELAY = 5
 
     def __init__(self):
         threading.Thread.__init__(self)
@@ -16,15 +19,21 @@ class OledDisplay(threading.Thread):
         self.device = ssd1322(serial_interface = serial, mode = "1")
         self.icon_font = "iconfont.ttf"
         self.text_font = "NotoSansCJKsc-Regular.otf"
-        self.service_status = "starting"
-        self.artist_start = 0
-        self.title_start = 0
+        self.service_status = "start"
+        self.uri = ""
+        self.status_thread = StatusThread()
+        self.status_thread.start()
 
-    def refresh(self,data):
+    def __refresh_status(self):
         try:
-            status=json.loads(data)
-            self.title = status["title"]
-            self.artist = status["artist"]
+            status= self.status_thread.get_status()
+
+            uri = status["uri"]
+            if self.uri != uri:
+                self.uri = uri
+                self.__reset_title(status["title"])
+                self.__reset_artist(status["artist"])
+
             self.status = status["status"]
             self.random = status["random"]
             self.repeat = status["repeat"]
@@ -37,6 +46,17 @@ class OledDisplay(threading.Thread):
     def run(self):
         while True:
             self.__display()
+            time.sleep(1/self.DISPLAY_FPS)
+
+    def __reset_title(self,title):
+        self.title = title
+        self.title_cur_pos = 0
+        self.__title_delay = 0
+
+    def __reset_artist(self,artist):
+        self.artist = artist
+        self.artist_cur_pos = 0
+        self.__artist_delay = 0
 
     def __make_font(self, name, size):
         font_path = os.path.abspath(os.path.join(
@@ -51,11 +71,27 @@ class OledDisplay(threading.Thread):
         text_len = len(text)
         text_image_width = text_len * text_size
         font = self.__make_font(self.text_font,text_size)
-        text_image = Image.new("1", (text_image_width, text_image_height))
+        text_image = Image.new("1", (text_image_width,text_image_height))
         draw = ImageDraw.Draw(text_image)
         draw.text((0, -5), text, fill="white", font=font)
         self.blank_image = Image.new("1", (50, text_image_height))
         self.__paste_text(text_image,target_text_area,start)
+
+    def __get_title_position(self):
+        tmp_pos = self.title_cur_pos
+        if self.__title_delay < self.MOVE_TEXT_DELAY:
+            self.__title_delay +=  self.MOVE_TEXT_DELAY/self.DISPLAY_FPS
+        else:
+            self.title_cur_pos += self.MOVE_PIXEL_PER_SECOND / self.DISPLAY_FPS
+        return tmp_pos//1
+
+    def __get_artist_position(self):
+        tmp_pos = self.artist_cur_pos
+        if self.__artist_delay < self.MOVE_TEXT_DELAY:
+            self.__artist_delay +=  self.MOVE_TEXT_DELAY/self.DISPLAY_FPS
+        else:
+            self.artist_cur_pos += self.MOVE_PIXEL_PER_SECOND / self.DISPLAY_FPS
+        return tmp_pos//1
 
     def __paste_text(self,text_image,target_text_area,start):
         if text_image.width > target_text_area[2] - target_text_area[0]:
@@ -67,13 +103,13 @@ class OledDisplay(threading.Thread):
         text_size = 22
         text_image_height = 29
         target_text_area = (55, 0, 225, text_image_height)
-        self.__draw_text(text,text_size,text_image_height,target_text_area,self.title_start)
+        self.__draw_text(text,text_size,text_image_height,target_text_area,self.__get_title_position())
 
     def __draw_artist(self, text):
         text_size = 15
         text_image_height = 20
         target_text_area = (55, 30, 225, 30+text_image_height)
-        self.__draw_text(text,text_size,text_image_height,target_text_area,self.artist_start)
+        self.__draw_text(text,text_size,text_image_height,target_text_area,self.__get_artist_position())
 
     def __draw_random(self,  text):
         self.draw.text((235, 2), text, fill="white", font=self.__make_font(self.icon_font,20))
@@ -134,14 +170,14 @@ class OledDisplay(threading.Thread):
     def __display(self):
         self.image = Image.new(self.device.mode, self.device.size)
         self.draw = ImageDraw.Draw(self.image)
-        print(self.service_status)
-        if self.service_status == "starting":
+        if self.service_status == "start":
             self.banner = "Starting..."
             self.__draw_banner()
-        elif self.service_status == "stopping":
+        elif self.service_status == "stop":
             self.banner = "Stopping..."
             self.__draw_banner()
-        elif self.service_status == "running":
+        elif self.service_status == "run":
+            self.__refresh_status()
             # 绘制播放图标
             if self.status == "play":
                 self.__draw_status("\ue63d")
@@ -160,21 +196,32 @@ class OledDisplay(threading.Thread):
             # 绘制时间进度条
             self.__draw_bar()
         else:
-            self.banner = "Error"
+            self.banner = self.service_status
             self.__draw_banner()
 
         self.device.display(self.image)
+
+class StatusThread(threading.Thread):
+    STATUS_REFRESH_INTERVAL = 1
+    __status = None
+
+    def run(self):
+        while True:
+            popen = subprocess.Popen("volumio status", stdout=subprocess.PIPE,shell=True)
+            data = popen.stdout.read()
+            self.__status = json.loads(str(data,encoding="utf-8"))
+            time.sleep(self.STATUS_REFRESH_INTERVAL)
+
+    def get_status(self):
+        return self.__status
 
 
 oled = OledDisplay()
 oled.start()
 
 while True:
-#    data = input()
-    data='{"status":"play","position":0,"title":"你怎么舍得我难过 ","artist":"黄品源","album":"情歌101","albumart":"/albumart?cacheid=973&web=%E9%BB%84%E5%93%81%E6%BA%90/%E6%83%85%E6%AD%8C101/extralarge&path=%2FNAS%2Fmusic%2FPop%2F%E6%83%85%E6%AD%8C101(Disc%201)&metadata=true","uri":"mnt/NAS/music/Pop/情歌101(Disc 1)/01 黄品源 - 你怎么舍得我难过 .m4a","trackType":"m4a","seek":209000 ,"duration":294,"samplerate":"44.1 KHz","bitdepth":"16 bit","channels":2,"random":false,"repeat":true,"repeatSingle":false,"consume":false,"volume":0,"mute":false,"stream":"m4a","updatedb":false,"volatile":false,"service":"mpd"}'
+    #command = input()
     time.sleep(1)
-    oled.refresh(data)
-    oled.service_status = "running"
-#    time.sleep(5)
-#    oled.service_status = "stopping"
+    command = "run"
+    oled.service_status = command
 
