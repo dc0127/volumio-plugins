@@ -108,16 +108,6 @@ class OledDisplay(threading.Thread):
         font = self._make_font(self.__icon_font, 48)
         self.__draw.text((0, -2), text, fill="white", font=font)
 
-    def __draw_text(self, text, text_size, text_image_height, target_text_area, start):
-        font = self._make_font(self.__text_font, text_size)
-        text_image_size = font.getsize(text)
-        text_image = Image.new("1", text_image_size)
-        draw = ImageDraw.Draw(text_image)
-        draw.text((0, -5), text, fill="white", font=font)
-        print(text_image, draw.textsize(text, font=font))
-        self.__blank_image = Image.new("1", (50, text_image_size[1]))
-        self.__paste_text(text_image, target_text_area, start)
-
     def _draw_title(self, text):
         text_size = 22
         font = self._make_font(self.__text_font, text_size)
