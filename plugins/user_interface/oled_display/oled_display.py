@@ -2,6 +2,7 @@
 
 import io
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -11,6 +12,15 @@ import time
 from PIL import Image, ImageDraw, ImageFont
 from luma.core.interface.serial import spi
 from luma.oled.device import ssd1322
+
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s %(levelname)s %(funcName)s# %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                    handlers={logging.FileHandler(filename="/var/log/oled_display.log",
+                                                  mode="w", encoding="utf-8")})
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf8")
+sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf8")
 
 
 class OledDisplay(threading.Thread):
@@ -22,8 +32,6 @@ class OledDisplay(threading.Thread):
 
     def __init__(self):
         threading.Thread.__init__(self)
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf8")
-        sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf8")
         serial = spi(device=0, port=0)
         self._device = ssd1322(serial_interface=serial, mode="1")
         self._display_mode = "start"
@@ -131,7 +139,12 @@ class OledDisplay(threading.Thread):
         bar_start = 5
         bar_end = 250
         bar_width = bar_end - bar_start
-        progress = bar_width * self._bar[0] / self._bar[1]
+        seek = self._bar[0]
+        duration = self._bar[1]
+        if duration != 0:
+            progress = bar_width * seek / duration
+        else:
+            progress = 0
         bar_current = bar_start + progress
         if bar_current > bar_end:
             bar_current = bar_end
@@ -187,10 +200,13 @@ class StatusMonitor(threading.Thread):
 
     def run(self):
         while True:
-            popen = subprocess.Popen("volumio status", stdout=subprocess.PIPE, shell=True)
-            data = popen.stdout.read()
-            self.__status = json.loads(str(data, encoding="utf-8"))
-            time.sleep(self.STATUS_REFRESH_INTERVAL)
+            try:
+                popen = subprocess.Popen("volumio status", stdout=subprocess.PIPE, shell=True)
+                data = popen.stdout.read()
+                self.__status = json.loads(str(data, encoding="utf-8"))
+                time.sleep(self.STATUS_REFRESH_INTERVAL)
+            except Exception as err:
+                logging.error("获取音轨状态失败")
 
     def get_status(self):
         return self.__status
@@ -231,11 +247,10 @@ def main():
     oled.start()
 
     while True:
-        # command = input()
-        time.sleep(1)
-        command = "run"
-        oled._display_mode = command
+        mode = input()
+        logging.info("模式切换：" + mode)
+        oled._display_mode = mode
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
