@@ -52,10 +52,10 @@ class OledDisplay(threading.Thread):
         self.__image = Image.new(self._device.mode, self._device.size)
         self.__draw = ImageDraw.Draw(self.__image)
         if self._display_mode == "start":
-            self._banner = "Starting..."
+            self._banner = "Starting ..."
             self._draw_banner()
         elif self._display_mode == "stop":
-            self._banner = "Stopping..."
+            self._banner = "Stopping ..."
             self._draw_banner()
         elif self._display_mode == "run":
             self._refresh_status()
@@ -151,7 +151,7 @@ class OledDisplay(threading.Thread):
         self.__draw.line([(bar_start, 55), (bar_current, 55)], fill="white", width=5)
 
     def _draw_banner(self):
-        text_size = 40
+        text_size = 35
         font = self._make_font(self.__text_font, text_size)
         text_image_size = self.__draw.textsize(self._banner, font=font)
         x = (self._device.width - text_image_size[0]) // 2
