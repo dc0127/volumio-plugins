@@ -15,11 +15,8 @@ from luma.oled.device import ssd1322
 
 class OledDisplay(threading.Thread):
     # 显示刷新率
-    DISPLAY_FPS = 20
-    # 文字每秒滚动的像素数，决定滚动文字的速度
-    MOVE_PIXEL_PER_SECOND = 50
-    # 开始播放音轨后，如果标题文字过长，延迟几秒后再滚动文字
-    MOVE_TEXT_DELAY = 5
+    DISPLAY_FPS = 25
+
     # 空白图片宽度（单位：像素）
     BLANK_IMAGE_WIDTH = 50
 
@@ -35,6 +32,8 @@ class OledDisplay(threading.Thread):
         self.__uri = ""
         self.__status_monitor = StatusMonitor()
         self.__status_monitor.start()
+        self.title_text_window = TextWindow(self.DISPLAY_FPS)
+        self.artist_text_window = TextWindow(self.DISPLAY_FPS)
 
     def run(self):
         while True:
@@ -80,8 +79,10 @@ class OledDisplay(threading.Thread):
         uri = status["uri"]
         if self.__uri != uri:
             self.__uri = uri
-            self.__reset_title(status["title"])
-            self.__reset_artist(status["artist"])
+            self._title = status["title"]
+            self.title_text_window.reset()
+            self._artist = status["artist"]
+            self.artist_text_window.reset()
 
         self._status = status["status"]
         self._random = status["random"]
@@ -89,16 +90,6 @@ class OledDisplay(threading.Thread):
         duration = status["duration"]
         seek = status["seek"]
         self._bar = (seek, duration * 1000)
-
-    def __reset_title(self, title):
-        self._title = title
-        self.__title_cur_pos = 0
-        self.__title_delay = 0
-
-    def __reset_artist(self, artist):
-        self._artist = artist
-        self.__artist_cur_pos = 0
-        self.__artist_delay = 0
 
     @staticmethod
     def _make_font(name, size):
@@ -118,7 +109,7 @@ class OledDisplay(threading.Thread):
         text_image = Image.new("1", text_image_size)
         draw = ImageDraw.Draw(text_image)
         draw.text((0, -5), text, fill="white", font=font)
-        self.__paste_text(text_image, target_text_area, self.__get_title_position())
+        self.__paste_text(text_image, target_text_area, self.title_text_window)
 
     def _draw_artist(self, text):
         text_size = 15
@@ -128,7 +119,7 @@ class OledDisplay(threading.Thread):
         text_image = Image.new("1", text_image_size)
         draw = ImageDraw.Draw(text_image)
         draw.text((0, -5), text, fill="white", font=font)
-        self.__paste_text(text_image, target_text_area, self.__get_artist_position())
+        self.__paste_text(text_image, target_text_area, self.artist_text_window)
 
     def _draw_random(self, text):
         self.__draw.text((235, 2), text, fill="white", font=self._make_font(self.__icon_font, 20))
@@ -154,37 +145,25 @@ class OledDisplay(threading.Thread):
         y = (self._device.height - text_image_size[1]) // 2
         self.__draw.text((x, y), self._banner, fill="white", font=font)
 
-    def __get_title_position(self):
-        tmp_pos = self.__title_cur_pos
-        if self.__title_delay < self.MOVE_TEXT_DELAY:
-            self.__title_delay += self.MOVE_TEXT_DELAY / self.DISPLAY_FPS
-        else:
-            self.__title_cur_pos += self.MOVE_PIXEL_PER_SECOND / self.DISPLAY_FPS
-        return tmp_pos // 1
-
-    def __get_artist_position(self):
-        tmp_pos = self.__artist_cur_pos
-        if self.__artist_delay < self.MOVE_TEXT_DELAY:
-            self.__artist_delay += self.MOVE_TEXT_DELAY / self.DISPLAY_FPS
-        else:
-            self.__artist_cur_pos += self.MOVE_PIXEL_PER_SECOND / self.DISPLAY_FPS
-        return tmp_pos // 1
-
-    def __paste_text(self, text_image, target_text_area, start):
+    def __paste_text(self, text_image, target_text_area, text_window):
         if text_image.width > target_text_area[2] - target_text_area[0]:
-            self.__crop_text(text_image, target_text_area, start, target_text_area[2] - target_text_area[0])
+            self.__crop_text(text_image, target_text_area, text_window)
         else:
             self.__center_text(text_image, target_text_area)
 
-    def __crop_text(self, text_image, target_text_area, start, width):
+    def __crop_text(self, text_image, target_text_area, text_window):
         text_image_with_blank = Image.new("1", (text_image.width + self.BLANK_IMAGE_WIDTH, text_image.height))
         text_image_with_blank.paste(text_image, (0, 0, text_image.width, text_image.height))
 
-        if (start + width) < text_image_with_blank.width:
-            crop_box = (start, 0, start + width, text_image_with_blank.height)
+        text_window.image_width = text_image_with_blank.width
+        text_area_width = target_text_area[2] - target_text_area[0]
+
+        if (text_window.get_position() + text_area_width) < text_image_with_blank.width:
+            crop_box = (text_window.get_position(), 0,
+                        text_window.get_position() + text_area_width, text_image_with_blank.height)
             self.__image.paste(text_image_with_blank.crop(crop_box), target_text_area)
         else:
-            crop_box = (start, 0, text_image_with_blank.width, text_image_with_blank.height)
+            crop_box = (text_window.get_position(), 0, text_image_with_blank.width, text_image_with_blank.height)
             front_image = text_image_with_blank.crop(crop_box)
             front_box = (target_text_area[0], target_text_area[1],
                          target_text_area[0] + front_image.width, target_text_area[3])
@@ -194,7 +173,8 @@ class OledDisplay(threading.Thread):
             end_image = text_image_with_blank.crop(crop_box)
             end_box = (front_box[2], front_box[1], front_box[2] + end_image.width, front_box[3])
             self.__image.paste(end_image, end_box)
-            # print(">",start + width,text_image.width)
+
+        text_window.move()
 
     def __center_text(self, text_image, target_text_area):
         x0 = target_text_area[0] + (target_text_area[2] - target_text_area[0] - text_image.width) // 2
@@ -214,6 +194,36 @@ class StatusMonitor(threading.Thread):
 
     def get_status(self):
         return self.__status
+
+
+class TextWindow(object):
+    # 文字每秒滚动的像素数，决定滚动文字的速度
+    MOVE_PIXEL_PER_SECOND = 50
+    # 开始播放音轨后，如果标题文字过长，延迟几秒后再滚动文字
+    MOVE_TEXT_DELAY = 5
+
+    __cur_pos = 0
+    __delay = 0
+    image_width = 0
+
+    def __init__(self, fps):
+        self.__fps = fps
+
+    def reset(self):
+        self.__cur_pos = 0
+        self.__delay = 0
+
+    def move(self):
+        if self.__delay < self.MOVE_TEXT_DELAY:
+            self.__delay += self.MOVE_TEXT_DELAY / self.__fps
+        else:
+            self.__cur_pos += self.MOVE_PIXEL_PER_SECOND / self.__fps
+
+        if self.__cur_pos > self.image_width:
+            self.reset()
+
+    def get_position(self):
+        return self.__cur_pos // 1
 
 
 def main():
