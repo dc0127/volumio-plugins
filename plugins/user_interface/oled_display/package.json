@@ -11,7 +11,8 @@
 	"volumio_info": {
 		"prettyName": "oled_display",
 		"icon": "fa-lightbulb-o",
-		"plugin_type": "user_interface"
+		"plugin_type": "user_interface",
+                "boot_priority":1
 	},
 	"dependencies": {
 		"fs-extra": "^0.28.0",

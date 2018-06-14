@@ -5,10 +5,6 @@ var fs=require('fs-extra');
 var config = new (require('v-conf'))();
 var exec = require('child_process').exec;
 var execSync = require('child_process').execSync;
-//var socket = new(require("net").Socket)();
-//var net = require("net");
-//const socket_address = "/tmp/oled_display.sock";
-//var socket = net.createConnection(socket_address);
 var oled = require('child_process').spawn('/usr/bin/python3',[__dirname + '/oled_display.py'],{stdio:['ipc']});
 
 
@@ -33,13 +29,8 @@ oledDisplay.prototype.onVolumioStart = function()
 	this.config.loadFile(configFile);
 
         self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'oledDisplay::######## start' );
- //       socket.connect(socket_address,function(){
-  //          self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'oledDisplay::onVolumioStart connect to ' + socket_address);
-   //     });
-  //      socket.on('connect', function() {
-   //         self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'oledDisplay::onVolumioStart connect to ' + socket_address);
-    //    });
-
+        
+        //oled.send('run')
 
         oled.stdout.on('data', (data) => {
           self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'oledDisplay::######## stdout' + data);
@@ -198,8 +189,6 @@ oledDisplay.prototype.pushState = function(state) {
 	var self = this;
 	self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'oledDisplay::pushState' + JSON.stringify(state));
         
-        oled.send(JSON.stringify(state)); 
-
 	return self.commandRouter.servicePushState(state, self.servicename);
 };
 
